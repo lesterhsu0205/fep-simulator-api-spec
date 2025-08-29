@@ -1,0 +1,11 @@
+# 排除不需要的檔案
+README.md
+CLAUDE.md
+.git
+.gitignore
+Dockerfile
+.dockerignore
+
+# 系統檔案
+*.log
+.DS_Store

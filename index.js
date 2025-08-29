@@ -6,11 +6,10 @@ var http = require('http');
 var oas3Tools = require('oas3-tools');
 var serverPort = 8080;
 
-// swaggerRouter configuration
+// 純粹 API 文檔展示，不需要路由控制器
 var options = {
-    routing: {
-        controllers: path.join(__dirname, './controllers')
-    },
+    swaggerUi: '/fes/api/doc',
+    // 移除 routing 配置，專注於 API 規格展示
 };
 
 var expressAppConfig = oas3Tools.expressAppConfig(path.join(__dirname, 'api/api-specification.yaml'), options);
