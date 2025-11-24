@@ -25,7 +25,23 @@ info:
     }
     ```
     
-    ## 重要變更 (v1.3.0)
+    ## 重要變更 (v1.4.0)
+    **新增 API 端點與功能擴充**:
+    - **收送紀錄管理**: 新增 `/fes/api/logs` 交易收送紀錄查詢 API，支援多條件篩選和分頁
+    - **使用者管理優化**: 新增 `/fes/api/users/maint` 統一使用者維護端點，支援 A/U/D 操作
+    - **使用者列表查詢**: 新增 `/fes/api/users/list` 和 `/fes/api/users/{id}` 使用者查詢 API
+    - **txnData 排序**: 交易日誌中的 txnData 欄位依據 txmsglayout 表進行結構化排序
+    - **角色關聯管理**: 使用者管理支援角色關聯的建立、更新和刪除
+    - **完整 Schema 定義**: 新增所有新 API 的完整 Schema 定義和驗證規則
+    - **錯誤代碼架構優化** (2025-11-07):
+      - 採用**雙層錯誤代碼架構**，明確區分 HTTP API 層（ApiCodeEnum）和業務邏輯層（ErrorCodeEnum）
+      - HTTP API 層使用 4 碼錯誤代碼（0XXX）和 5 碼成功代碼（00000）
+      - 業務邏輯層使用多種代碼格式（9XXX, PXXXX, AXXX 等）
+      - 更新錯誤代碼說明章節，提供完整分類和常用代碼參考
+      - 更新 CommResponse Schema，明確說明 messageCode 使用 ApiCodeEnum
+      - 總計 74 個 HTTP API 錯誤代碼，41 個業務邏輯錯誤代碼
+    
+    ## 歷史變更 (v1.3.0)
     **系統架構優化與新增功能**:
     - **模組化重構**: 新增 fep-simulator-common 模組，統一管理共享 DTOs 和工具類
     - **JCIC 交易優化**: bizCode "121" JCIC 交易處理優化，Base64 編解碼改為返回純文字 UTF-8
@@ -48,24 +64,50 @@ info:
     - **提升可預測性**: 這個變更大幅提升了 API 回應的一致性和可預測性
     
     ## 錯誤代碼說明
-    - `00000`: 交易成功
-    - `9999`: 交易失敗/業務邏輯錯誤
-    - `9998`: 參數驗證失敗 (Token 已過期)
-    - `9997`: 系統內部錯誤 (Token 不存在)
-    - `9996`: 轉送系統連線錯誤
-    - `9995`: 電文格式錯誤
-    - `9994`: 欄位長度驗證失敗
-    - `P0108`: 聯徵查詢失敗
+
+    本系統採用**雙層錯誤代碼架構**，依據使用場景區分為兩類：
+
+    ### HTTP API 層錯誤代碼（ApiCodeEnum）
+    用於 Controller 層的 HTTP API 回應（即 `messageCode` 欄位），採用 **4 碼錯誤代碼**或 **5 碼成功代碼**：
+
+    **成功代碼**:
+    - `00000`: 操作成功（唯一的成功回應代碼）
+
+    **常用錯誤代碼**（按分類）:
+    - **系統錯誤** (01XX): `0101` 系統內部異常
+    - **參數驗證錯誤** (03XX): `0302` 必填欄位缺失、`0303` 參數格式錯誤、`0308` 不支援的操作類型
+    - **認證/授權錯誤** (04XX): `0401` Token 已過期、`0402` Token 無效、`0403` 權限不足
+    - **業務邏輯錯誤** (06XX):
+      - 使用者管理: `0601` 使用者不存在、`0603` 使用者已存在、`0607` 角色不存在
+      - 財金情境: `0611` 財金情境不存在、`0613` 財金情境建立失敗
+      - 聯徵情境: `0621` 聯徵情境不存在、`0623` 聯徵情境建立失敗
+      - 快取管理: `0641` 快取操作失敗
+
+    > **完整錯誤代碼清單**: 74 個代碼（1 個成功 + 73 個錯誤），詳見 `API_CODE_SPECIFICATION.md`
+
+    ### 業務邏輯層錯誤代碼（ErrorCodeEnum）
+    用於 Service 層業務邏輯和交易模擬回應的 `returnCode` 欄位，採用**多種代碼格式**：
+
+    - **系統錯誤** (9XXX): `9997` 系統內部錯誤、`9999` 無此模擬資料
+    - **業務錯誤** (PXXXX): `P0108` 聯徵查詢失敗、`P0001` 查無此帳號、`P0002` 餘額不足
+    - **系統模擬錯誤**: `F001` 財金無此模擬資料、`J001` 聯徵無此模擬資料、`A001` ATM 無此模擬資料
+
+    > **完整錯誤代碼清單**: 41 個代碼，詳見 `ERROR_CODE_SPECIFICATION.md`
+
+    ### 架構說明
+    - **ApiCodeEnum**: 用於 Controller 層 HTTP API 回應（本規格文件中的所有 API 端點）
+    - **ErrorCodeEnum**: 用於 Service 層業務邏輯、交易模擬回應（如 `/fes/txn/service/out` 回應的 `body.returnCode`）
+    - **快速總覽**: 詳見 `ERROR_CODE_OVERVIEW.md`
     
-  version: 1.3.0
+  version: 1.4.0
   contact:
     name: LINE Bank FEP Simulator Team
-    email: support@linebank.com
+    email: angus.kao@linebank.com.tw
   license:
     name: Private
     
 servers:
-  - url: https://{domain_name}/fes/api
+  - url: https://{domain_name}
     description: Production server
     variables:
       domain_name:
@@ -86,10 +128,12 @@ tags:
     description: FEP 交易模擬處理 API
   - name: 系統管理
     description: 系統管理與維護相關 API
+  - name: 收送紀錄管理
+    description: 交易收送紀錄查詢相關 API
 
 paths:
   # 使用者管理 API
-  /auth/login:
+  /fes/api/auth/login:
     post:
       tags:
         - 使用者管理
@@ -162,17 +206,17 @@ paths:
                 login_failed:
                   summary: 登入失敗
                   value:
-                    messageCode: "9999"
+                    messageCode: "0404"
                     messageDesc: "登入失敗"
                     messageContent: null
                 system_error:
                   summary: 系統錯誤
                   value:
-                    messageCode: "9997"
-                    messageDesc: "系統內部錯誤"
+                    messageCode: "0101"
+                    messageDesc: "系統內部異常"
                     messageContent: null
 
-  /auth/verify:
+  /fes/api/auth/verify:
     post:
       tags:
         - 使用者管理
@@ -214,17 +258,17 @@ paths:
                 invalid_token:
                   summary: Token 無效
                   value:
-                    messageCode: "9998"
+                    messageCode: "0401"
                     messageDesc: "Token 已過期"
                     messageContent: null
                 missing_token:
                   summary: Token 缺失
                   value:
-                    messageCode: "9998"
-                    messageDesc: "Token 已過期"
+                    messageCode: "0402"
+                    messageDesc: "Token 無效"
                     messageContent: null
 
-  /auth/:
+  /fes/api/auth/:
     get:
       tags:
         - 使用者管理
@@ -241,7 +285,7 @@ paths:
                 type: string
                 example: "FEP Simulator API is running!"
 
-  /users/create:
+  /fes/api/users/create:
     post:
       tags:
         - 使用者管理
@@ -306,14 +350,14 @@ paths:
                 username_exists:
                   summary: 使用者名稱重複
                   value:
-                    messageCode: "9999"
-                    messageDesc: "使用者名稱已存在"
+                    messageCode: "0603"
+                    messageDesc: "使用者已存在"
                     messageContent: null
                 validation_error:
                   summary: 參數驗證失敗
                   value:
-                    messageCode: "9998"
-                    messageDesc: "參數驗證失敗"
+                    messageCode: "0302"
+                    messageDesc: "必填欄位缺失"
                     messageContent:
                       errors:
                         - field: "username"
@@ -325,12 +369,12 @@ paths:
                 system_error:
                   summary: 系統錯誤
                   value:
-                    messageCode: "9997"
-                    messageDesc: "系統內部錯誤"
+                    messageCode: "0101"
+                    messageDesc: "系統內部異常"
                     messageContent: null
 
   # 財金情境管理 API
-  /finance/scenario/maint:
+  /fes/api/finance/scenario/maint:
     post:
       tags:
         - 財金情境管理
@@ -425,11 +469,13 @@ paths:
                 validation_error:
                   summary: 參數驗證失敗
                   value:
-                    messageCode: "9999"
-                    messageDesc: "帳號不能為空"
-                    messageContent: null
+                    messageCode: "0302"
+                    messageDesc: "必填欄位缺失"
+                    messageContent:
+                      field: "account"
+                      message: "帳號不能為空"
 
-  /finance/scenario/list:
+  /fes/api/finance/scenario/list:
     get:
       tags:
         - 財金情境管理
@@ -522,7 +568,7 @@ paths:
                           updater: "BK00361"
                           updatedAt: "2025/07/05 05:00:00"
 
-  /finance/scenario/{id}:
+  /fes/api/finance/scenario/{id}:
     get:
       tags:
         - 財金情境管理
@@ -576,11 +622,11 @@ paths:
                 not_found:
                   summary: 資料不存在
                   value:
-                    messageCode: "9999"
+                    messageCode: "0611"
                     messageDesc: "財金情境不存在"
                     messageContent: null
 
-  /finance/scenario/query:
+  /fes/api/finance/scenario/query:
     get:
       tags:
         - 財金情境管理
@@ -636,11 +682,11 @@ paths:
                 not_found:
                   summary: 資料不存在
                   value:
-                    messageCode: "9999"
+                    messageCode: "0611"
                     messageDesc: "財金情境不存在"
                     messageContent: null
 
-  /finance/scenario/create:
+  /fes/api/finance/scenario/create:
     post:
       tags:
         - 財金情境管理
@@ -664,8 +710,103 @@ paths:
               schema:
                 $ref: '#/components/schemas/CommResponse'
 
+  /fes/api/finance/scenario/upload:
+    post:
+      tags:
+        - 財金情境管理
+      summary: 財金情境檔案上傳
+      description: |
+        透過上傳 Excel 檔案批量建立或更新財金情境資料
+        
+        ## 功能特色
+        - 支援 Excel (.xlsx) 檔案格式
+        - 支援批量建立 (CREATE) 和更新 (UPDATE) 操作
+        - 即時處理，檔案處理完成後立即刪除
+        - 直接寫入 fisc_situation 資料表
+        - 完整的錯誤驗證和回報機制
+        
+        ## 檔案格式要求
+        - **檔案類型**: .xlsx 格式
+        - **工作表名稱**: "財金情境表"
+        - **最大檔案大小**: 10MB
+        - **最大記錄數**: 10,000 筆
+        
+        ## 操作模式
+        - **CREATE**: 批量建立新的財金情境，帳號必須唯一
+        - **UPDATE**: 批量更新既有財金情境，使用帳號作為識別符
+      operationId: uploadFiscSituationFile
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FileUploadRequest'
+            examples:
+              create_example:
+                summary: 批量建立財金情境
+                value:
+                  file: "(binary file content)"
+                  action: "CREATE"
+              update_example:
+                summary: 批量更新財金情境
+                value:
+                  file: "(binary file content)"
+                  action: "UPDATE"
+      responses:
+        '200':
+          description: 檔案處理結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommResponse'
+              examples:
+                success:
+                  summary: 處理成功
+                  value:
+                    messageCode: "00000"
+                    messageDesc: "處理完成"
+                    messageContent:
+                      uploadId: "upload-20250901-001"
+                      fileName: "財金情境資料.xlsx"
+                      action: "CREATE"
+                      totalRecords: 100
+                      successRecords: 95
+                      failedRecords: 5
+                      successRate: 95.00
+                      processingTime: "00:00:45"
+                      processedAt: "2025-09-01T10:30:00Z"
+                      creator: "john.doe"
+                      errors:
+                        - row: 6
+                          column: "account"
+                          value: "12345"
+                          errorCode: "9203"
+                          errorMessage: "帳號格式不正確"
+                file_format_error:
+                  summary: 檔案格式錯誤
+                  value:
+                    messageCode: "9100"
+                    messageDesc: "檔案處理失敗"
+                    messageContent:
+                      uploadId: "upload-20250901-002"
+                      fileName: "invalid.xls"
+                      action: "CREATE"
+                      totalRecords: 0
+                      successRecords: 0
+                      failedRecords: 0
+                      successRate: 0.00
+                      processingTime: "00:00:02"
+                      processedAt: "2025-09-01T10:30:00Z"
+                      creator: "john.doe"
+                      errors:
+                        - row: null
+                          column: null
+                          value: "invalid.xls"
+                          errorCode: "9100"
+                          errorMessage: "不支援的檔案格式，僅支援 .xlsx 格式"
+
   # 聯徵情境管理 API
-  /credit/maint:
+  /fes/api/credit/maint:
     post:
       tags:
         - 聯徵情境管理
@@ -730,7 +871,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CommResponse'
 
-  /credit/list:
+  /fes/api/credit/list:
     get:
       tags:
         - 聯徵情境管理
@@ -854,7 +995,7 @@ paths:
                           updater: "BK00361"
                           updatedAt: "2025/07/05 05:00:00"
 
-  /credit/{id}:
+  /fes/api/credit/{id}:
     get:
       tags:
         - 聯徵情境管理
@@ -905,11 +1046,11 @@ paths:
                 not_found:
                   summary: 資料不存在
                   value:
-                    messageCode: "9999"
+                    messageCode: "0621"
                     messageDesc: "聯徵情境不存在"
                     messageContent: null
 
-  /credit/query:
+  /fes/api/credit/query:
     get:
       tags:
         - 聯徵情境管理
@@ -988,11 +1129,11 @@ paths:
                 not_found:
                   summary: 資料不存在
                   value:
-                    messageCode: "9999"
+                    messageCode: "0621"
                     messageDesc: "聯徵情境不存在"
                     messageContent: null
 
-  /credit/create:
+  /fes/api/credit/create:
     post:
       tags:
         - 聯徵情境管理
@@ -1016,8 +1157,111 @@ paths:
               schema:
                 $ref: '#/components/schemas/CommResponse'
 
+  /fes/api/credit/upload:
+    post:
+      tags:
+        - 聯徵情境管理
+      summary: 聯徵情境檔案上傳
+      description: |
+        透過上傳 Excel 檔案批量建立或更新聯徵情境資料
+        
+        ## 功能特色
+        - 支援 Excel (.xlsx) 檔案格式
+        - 支援批量建立 (CREATE) 和更新 (UPDATE) 操作
+        - 即時處理，檔案處理完成後立即刪除
+        - 直接寫入 jcic_situation 資料表
+        - jcic_data 支援明碼輸入，包含 HTML 格式和換行字符
+        
+        ## 檔案格式要求
+        - **檔案類型**: .xlsx 格式
+        - **工作表名稱**: "聯徵情境表"
+        - **最大檔案大小**: 10MB
+        - **最大記錄數**: 10,000 筆
+        
+        ## 操作模式
+        - **CREATE**: 批量建立新的聯徵情境，查詢組合必須唯一
+        - **UPDATE**: 批量更新既有聯徵情境，使用複合鍵識別(txid + inquery_key_1 + inquery_key_2 + return_code + force_to_jcic)
+        
+        ## 複合鍵識別邏輯
+        UPDATE 模式使用以下欄位的組合作為唯一識別符：
+        - txid (查詢項目)
+        - inquery_key_1 (查詢條件1)  
+        - inquery_key_2 (查詢條件2)
+        - return_code (回應代碼)
+        - force_to_jcic (強制發查)
+      operationId: uploadJcicSituationFile
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FileUploadRequest'
+            examples:
+              create_example:
+                summary: 批量建立聯徵情境
+                value:
+                  file: "(binary file content)"
+                  action: "CREATE"
+              update_example:
+                summary: 批量更新聯徵情境
+                value:
+                  file: "(binary file content)"
+                  action: "UPDATE"
+      responses:
+        '200':
+          description: 檔案處理結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommResponse'
+              examples:
+                success:
+                  summary: 處理成功
+                  value:
+                    messageCode: "00000"
+                    messageDesc: "處理完成"
+                    messageContent:
+                      uploadId: "upload-20250901-003"
+                      fileName: "聯徵情境資料.xlsx"
+                      action: "CREATE"
+                      totalRecords: 50
+                      successRecords: 48
+                      failedRecords: 2
+                      successRate: 96.00
+                      processingTime: "00:00:30"
+                      processedAt: "2025-09-01T10:30:00Z"
+                      creator: "john.doe"
+                      errors:
+                        - row: 3
+                          column: "txid"
+                          value: null
+                          errorCode: "9200"
+                          errorMessage: "查詢項目不能為空"
+                jcic_data_error:
+                  summary: 聯徵資料格式錯誤
+                  value:
+                    messageCode: "0627"
+                    messageDesc: "聯徵情境上傳失敗"
+                    messageContent:
+                      uploadId: "upload-20250901-004"
+                      fileName: "聯徵情境資料.xlsx"
+                      action: "UPDATE"
+                      totalRecords: 10
+                      successRecords: 8
+                      failedRecords: 2
+                      successRate: 80.00
+                      processingTime: "00:00:25"
+                      processedAt: "2025-09-01T10:30:00Z"
+                      creator: "john.doe"
+                      errors:
+                        - row: 5
+                          column: "jcic_data"
+                          value: "<script>alert('xss')</script>"
+                          errorCode: "9202"
+                          errorMessage: "聯徵資料包含不安全的內容"
+
   # 交易模擬器 API
-  /txn/service/out:
+  /fes/txn/service/out:
     post:
       tags:
         - 交易模擬器
@@ -1116,7 +1360,7 @@ paths:
                       resultDesc: "聯徵查詢失敗"
 
   # 系統管理 API
-  /admin/health:
+  /actuator/health:
     get:
       tags:
         - 系統管理
@@ -1142,7 +1386,7 @@ paths:
                       status: "healthy"
                       timestamp: 1642745400000
 
-  /admin/cache/all:
+  /fes/api/admin/cache/all:
     delete:
       tags:
         - 系統管理
@@ -1174,14 +1418,14 @@ paths:
                 error:
                   summary: 清除失敗
                   value:
-                    messageCode: "9999"
-                    messageDesc: "交易失敗"
+                    messageCode: "0641"
+                    messageDesc: "快取操作失敗"
                     messageContent:
                       message: "清除快取失敗: Connection timeout"
                       operation: "clearAllCache"
                       error: "TimeoutException"
 
-  /admin/cache/prefix/{prefix}:
+  /fes/api/admin/cache/prefix/{prefix}:
     delete:
       tags:
         - 系統管理
@@ -1204,7 +1448,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CommResponse'
 
-  /admin/cache/key/{key}:
+  /fes/api/admin/cache/key/{key}:
     delete:
       tags:
         - 系統管理
@@ -1227,7 +1471,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CommResponse'
 
-  /admin/cache/fisc/situations:
+  /fes/api/admin/cache/fisc/situations:
     delete:
       tags:
         - 系統管理
@@ -1242,7 +1486,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CommResponse'
 
-  /admin/cache/fisc/situations/{account}:
+  /fes/api/admin/cache/fisc/situations/{account}:
     delete:
       tags:
         - 系統管理
@@ -1265,7 +1509,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CommResponse'
 
-  /admin/cache/jcic:
+  /fes/api/admin/cache/jcic:
     delete:
       tags:
         - 系統管理
@@ -1280,7 +1524,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CommResponse'
 
-  /admin/cache/check/{key}:
+  /fes/api/admin/cache/check/{key}:
     get:
       tags:
         - 系統管理
@@ -1324,6 +1568,533 @@ paths:
                       key: "sim:data:fisc:situation:123456789012"
                       exists: false
 
+  # 收送紀錄管理 API
+  /fes/api/logs:
+    get:
+      tags:
+        - 收送紀錄管理
+      summary: 收送紀錄查詢列表
+      description: |
+        查詢交易收送紀錄，支援多條件篩選和分頁功能，用於模擬交易的日誌查詢和分析
+        
+        ## 功能特色
+        - 支援時間範圍查詢，精確到秒
+        - 支援多種系統類型篩選 (FA/FI/FX/JC)
+        - 支援多種識別碼查詢 (GUID/ITAI GUID/UUID)
+        - txnData欄位依據txmsglayout排序，確保資料格式一致性
+        - 預設依記錄時間降序排列，最新記錄在前
+        
+        ## 系統類型說明
+        - **FA**: 財金系統
+        - **FI**: 財金資訊系統
+        - **FX**: 外匯系統
+        - **JC**: 聯徵系統
+        
+        ## 重要變更 (v1.3.0)
+        - **Null值處理**: 所有回應欄位都會包含在JSON中，null值會明確顯示為null
+        - **txnData排序**: 交易資料依據txmsglayout表進行結構化排序
+        - **快取優化**: 系統會快取txmsglayout排序規則，提升查詢效能
+      operationId: getTransactionLogs
+      parameters:
+        - name: page
+          in: query
+          description: 頁碼，從1開始
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+            example: 1
+        - name: pageSize
+          in: query
+          description: 每頁筆數
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+            example: 10
+        - name: startDatetime
+          in: query
+          description: 查詢起始時間 (yyyyMMddHHmmss格式)
+          required: false
+          schema:
+            type: string
+            pattern: '^\d{14}$'
+            example: "20250905000000"
+        - name: endDatetime
+          in: query
+          description: 查詢結束時間 (yyyyMMddHHmmss格式)
+          required: false
+          schema:
+            type: string
+            pattern: '^\d{14}$'
+            example: "20250906000000"
+        - name: systemType
+          in: query
+          description: 系統類型篩選，null表示查詢全部系統類型
+          required: false
+          schema:
+            type: string
+            enum: ["FA", "FI", "FX", "JC"]
+            nullable: true
+            example: "FA"
+        - name: txnId
+          in: query
+          description: 交易代碼篩選
+          required: false
+          schema:
+            type: string
+            maxLength: 5
+            example: "2521"
+        - name: guid
+          in: query
+          description: GUID篩選
+          required: false
+          schema:
+            type: string
+            maxLength: 32
+            example: "20250904171118213CBK02340D8DF1A7"
+        - name: italGuidOmsgID
+          in: query
+          description: ITAI GUID Q MSG ID篩選
+          required: false
+          schema:
+            type: string
+            maxLength: 32
+            example: "20250904171118213CBK02340D8DF1A8"
+        - name: uuid
+          in: query
+          description: UUID篩選
+          required: false
+          schema:
+            type: string
+            maxLength: 32
+            example: "20250904171118213CBK02340D8DF1A9"
+      responses:
+        '200':
+          description: 查詢結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommResponse'
+              examples:
+                success:
+                  summary: 查詢成功
+                  value:
+                    messageCode: "00000"
+                    messageDesc: "查詢成功"
+                    messageContent:
+                      query:
+                        startDatetime: "20250905000000"
+                        endDatetime: "20250906000000"
+                        systemType: "FA"
+                        txnId: "2521"
+                        guid: "20250904171118213CBK02340D8DF1A7"
+                        italGuidOmsgID: "20250904171118213CBK02340D8DF1A8"
+                        uuid: "20250904171118213CBK02340D8DF1A9"
+                      pagination:
+                        currentPage: 1
+                        itemsPerPage: 10
+                        totalItems: 25
+                        totalPages: 3
+                        hasNextPage: true
+                        hasPrevPage: false
+                      txlogs:
+                        - logDatetime: "2025/09/05 05:00:00"
+                          systemType: "FA"
+                          txnType: "req"
+                          txnId: "2521"
+                          guid: "20250904171118213CBK02340D8DF1A7"
+                          italGuidOmsgID: "20250904171118213CBK02340D8DF1A8"
+                          uuid: "20250904171118213CBK02340D8DF1A9"
+                          txnData: '{"header":{"systemType":"FA","txnId":"2521","guid":"20250904171118213CBK02340D8DF1A7"},"body":{"account":"1234567890","amount":"10000"}}'
+                empty_result:
+                  summary: 空結果
+                  value:
+                    messageCode: "00000"
+                    messageDesc: "查詢成功"
+                    messageContent:
+                      query:
+                        startDatetime: null
+                        endDatetime: null
+                        systemType: null
+                        txnId: null
+                        guid: null
+                        italGuidOmsgID: null
+                        uuid: null
+                      pagination:
+                        currentPage: 1
+                        itemsPerPage: 10
+                        totalItems: 0
+                        totalPages: 0
+                        hasNextPage: false
+                        hasPrevPage: false
+                      txlogs: []
+                validation_error:
+                  summary: 參數驗證失敗
+                  value:
+                    messageCode: "0303"
+                    messageDesc: "參數格式錯誤"
+                    messageContent:
+                      errors:
+                        - field: "startDatetime"
+                          message: "時間格式必須為yyyyMMddHHmmss"
+                        - field: "systemType"
+                          message: "系統類型必須為FA、FI、FX或JC其中之一，或不提供此參數以查詢全部系統"
+
+  # 使用者管理 API
+  /fes/api/users/maint:
+    post:
+      tags:
+        - 使用者管理
+      summary: 使用者維護（統一端點）
+      description: |
+        統一的使用者維護端點，支援新增(A)、修改(U)、刪除(D)操作
+        
+        ## 操作類型
+        - **A (新增)**: 建立新的使用者，帳號和電子郵件必須唯一
+        - **U (修改)**: 更新既有使用者，保留原始建立資訊
+        - **D (刪除)**: 刪除指定ID的使用者（不可逆）
+        
+        ## 欄位驗證規則
+        - A操作時：action, username, email, password 為必填
+        - U操作時：action, id, username, email 為必填
+        - D操作時：action, id 為必填
+        
+        ## 業務規則
+        - username和email必須唯一
+        - 角色管理採用覆蓋模式，更新roleCode會重建user_roles關聯
+        - 密碼僅在新增時需要，修改時不可透過此API更新
+        - 刪除操作會同時刪除相關的角色關聯
+        
+        ## 重要變更 (v1.3.0)
+        - **Null值處理**: 所有回應欄位都會包含在JSON中，null值會明確顯示為null
+        - **審計追蹤**: 完整記錄操作者和時間戳記
+      operationId: maintainSystemUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserMaintenanceRequest'
+            examples:
+              create_example:
+                summary: 新增使用者
+                value:
+                  action: "A"
+                  username: "john.doe"
+                  email: "john.doe@example.com"
+                  password: "SecurePass123!"
+                  accountType: "USER"
+                  isActive: true
+                  roleCode: "USER_ROLE"
+              update_example:
+                summary: 修改使用者
+                value:
+                  action: "U"
+                  id: 1
+                  username: "john.doe.updated"
+                  email: "john.updated@example.com"
+                  accountType: "ADMIN"
+                  isActive: true
+                  roleCode: "ADMIN"
+              delete_example:
+                summary: 刪除使用者
+                value:
+                  action: "D"
+                  id: 1
+      responses:
+        '200':
+          description: 操作結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommResponse'
+              examples:
+                create_success:
+                  summary: 新增成功
+                  value:
+                    messageCode: "00000"
+                    messageDesc: "交易成功"
+                    messageContent:
+                      user:
+                        id: 1
+                        username: "john.doe"
+                        email: "john.doe@example.com"
+                        accountType: "USER"
+                        isActive: true
+                        roleCode: "USER_ROLE"
+                        roleName: "一般使用者"
+                        createdAt: "2025/09/05 10:30:45"
+                        updatedAt: "2025/09/05 10:30:45"
+                update_success:
+                  summary: 修改成功
+                  value:
+                    messageCode: "00000"
+                    messageDesc: "交易成功"
+                    messageContent:
+                      user:
+                        id: 1
+                        username: "john.doe.updated"
+                        email: "john.updated@example.com"
+                        accountType: "ADMIN"
+                        isActive: true
+                        roleCode: "ADMIN"
+                        roleName: "系統管理員"
+                        createdAt: "2025/09/05 10:30:45"
+                        updatedAt: "2025/09/05 14:22:10"
+                delete_success:
+                  summary: 刪除成功
+                  value:
+                    messageCode: "00000"
+                    messageDesc: "交易成功"
+                    messageContent: null
+                username_exists:
+                  summary: 使用者名稱已存在
+                  value:
+                    messageCode: "0603"
+                    messageDesc: "使用者已存在"
+                    messageContent: null
+                user_not_found:
+                  summary: 使用者不存在
+                  value:
+                    messageCode: "0601"
+                    messageDesc: "使用者不存在"
+                    messageContent: null
+                validation_error:
+                  summary: 參數驗證失敗
+                  value:
+                    messageCode: "0302"
+                    messageDesc: "必填欄位缺失"
+                    messageContent:
+                      field: "action"
+                      message: "action欄位不能為空"
+
+  /fes/api/users/list:
+    get:
+      tags:
+        - 使用者管理
+      summary: 使用者列表查詢
+      description: |
+        查詢系統使用者列表，支援分頁和多條件篩選，並顯示使用者關聯的角色代碼
+        
+        ## 功能特色
+        - 支援使用者名稱和電子郵件模糊查詢
+        - 支援帳號類型、啟用狀態、角色代碼精確查詢
+        - 自動關聯使用者的角色資訊，提供完整的使用者權限檢視
+        - 預設依建立時間降序排列，最新使用者在前
+        - 密碼欄位不會在查詢結果中顯示，確保安全性
+        
+        ## 查詢條件
+        - **模糊查詢**: username、email（支援部分比對）
+        - **精確查詢**: accountType、isActive、roleCode（完全比對）
+        - **條件組合**: 所有查詢條件可任意組合使用
+        
+        ## 重要變更 (v1.3.0)
+        - **Null值處理**: 所有回應欄位都會包含在JSON中，null值會明確顯示為null
+        - **角色關聯**: 透過LEFT JOIN獲取角色資訊，未分配角色的使用者roleCode和roleName為null
+        - **快取優化**: 角色名稱會快取以提升查詢效能
+      operationId: getSystemUserList
+      parameters:
+        - name: page
+          in: query
+          description: 頁碼，從1開始
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+            example: 1
+        - name: pageSize
+          in: query
+          description: 每頁筆數
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+            example: 10
+        - name: username
+          in: query
+          description: 使用者名稱模糊查詢
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+            example: "john"
+        - name: email
+          in: query
+          description: 電子郵件模糊查詢
+          required: false
+          schema:
+            type: string
+            maxLength: 255
+            example: "@example.com"
+        - name: accountType
+          in: query
+          description: 帳號類型精確查詢
+          required: false
+          schema:
+            type: string
+            enum: ["ADMIN", "USER", "GUEST"]
+            example: "USER"
+        - name: isActive
+          in: query
+          description: 帳號啟用狀態篩選
+          required: false
+          schema:
+            type: boolean
+            example: true
+        - name: roleCode
+          in: query
+          description: 角色代碼精確查詢
+          required: false
+          schema:
+            type: string
+            maxLength: 50
+            example: "ADMIN"
+      responses:
+        '200':
+          description: 查詢結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommResponse'
+              examples:
+                success:
+                  summary: 查詢成功
+                  value:
+                    messageCode: "00000"
+                    messageDesc: "查詢成功"
+                    messageContent:
+                      query:
+                        username: "admin"
+                        email: null
+                        accountType: "ADMIN"
+                        isActive: true
+                        roleCode: "SUPER_ADMIN"
+                      pagination:
+                        currentPage: 1
+                        itemsPerPage: 10
+                        totalItems: 25
+                        totalPages: 3
+                        hasNextPage: true
+                        hasPrevPage: false
+                      users:
+                        - id: 1
+                          username: "admin.user"
+                          email: "admin@linebank.com"
+                          accountType: "ADMIN"
+                          isActive: true
+                          roleCode: "SUPER_ADMIN"
+                          roleName: "超級管理員"
+                          createdAt: "2025/09/01 10:30:45"
+                          updatedAt: "2025/09/03 14:22:10"
+                        - id: 2
+                          username: "john.doe"
+                          email: "john.doe@linebank.com"
+                          accountType: "USER"
+                          isActive: true
+                          roleCode: "USER"
+                          roleName: "一般使用者"
+                          createdAt: "2025/09/02 09:15:30"
+                          updatedAt: "2025/09/02 09:15:30"
+                        - id: 3
+                          username: "guest.account"
+                          email: "guest@linebank.com"
+                          accountType: "GUEST"
+                          isActive: false
+                          roleCode: null
+                          roleName: null
+                          createdAt: "2025/09/03 16:45:20"
+                          updatedAt: "2025/09/04 11:30:15"
+                empty_result:
+                  summary: 空結果
+                  value:
+                    messageCode: "00000"
+                    messageDesc: "查詢成功"
+                    messageContent:
+                      query:
+                        username: null
+                        email: null
+                        accountType: null
+                        isActive: null
+                        roleCode: null
+                      pagination:
+                        currentPage: 1
+                        itemsPerPage: 10
+                        totalItems: 0
+                        totalPages: 0
+                        hasNextPage: false
+                        hasPrevPage: false
+                      users: []
+                validation_error:
+                  summary: 參數驗證失敗
+                  value:
+                    messageCode: "0303"
+                    messageDesc: "參數格式錯誤"
+                    messageContent:
+                      errors:
+                        - field: "page"
+                          message: "頁碼必須大於0"
+                        - field: "accountType"
+                          message: "帳號類型必須為ADMIN、USER或GUEST其中之一"
+
+  /fes/api/users/{id}:
+    get:
+      tags:
+        - 使用者管理
+      summary: 依ID查詢使用者
+      description: |
+        查詢特定ID的使用者詳細資訊
+        
+        **重要變更 (v1.3.0)**: 所有回應欄位都會包含在結果中，null 值會明確顯示為 `null`，提升 API 回應的一致性和可預測性。
+      operationId: getSystemUserById
+      parameters:
+        - name: id
+          in: path
+          description: 使用者系統唯一識別碼
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+            example: 1
+      responses:
+        '200':
+          description: 查詢結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommResponse'
+              examples:
+                success:
+                  summary: 查詢成功
+                  value:
+                    messageCode: "00000"
+                    messageDesc: "查詢成功"
+                    messageContent:
+                      user:
+                        id: 1
+                        username: "admin.user"
+                        email: "admin@linebank.com"
+                        accountType: "ADMIN"
+                        isActive: true
+                        roleCode: "SUPER_ADMIN"
+                        roleName: "超級管理員"
+                        createdAt: "2025/09/01 10:30:45"
+                        updatedAt: "2025/09/03 14:22:10"
+                not_found:
+                  summary: 使用者不存在
+                  value:
+                    messageCode: "9001"
+                    messageDesc: "使用者不存在"
+                    messageContent:
+                      userId: 1
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1335,11 +2106,28 @@ components:
   schemas:
     CommResponse:
       type: object
-      description: 統一回應格式
+      description: |
+        統一回應格式
+
+        本系統 HTTP API 回應使用 ApiCodeEnum 錯誤代碼：
+        - 成功代碼: `00000` (5 碼)
+        - 錯誤代碼: `0XXX` (4 碼，範圍 0101-0999)
+
+        完整代碼清單請參考 API_CODE_SPECIFICATION.md
       properties:
         messageCode:
           type: string
-          description: 回應代碼
+          description: |
+            回應代碼（使用 ApiCodeEnum）
+            - `00000`: 操作成功（唯一成功代碼）
+            - `0XXX`: 錯誤代碼（4 碼）
+              - 01XX: 系統錯誤
+              - 02XX: 資料庫錯誤
+              - 03XX: 參數驗證錯誤
+              - 04XX: 認證/授權錯誤
+              - 05XX: 檔案處理錯誤
+              - 06XX: 業務邏輯錯誤
+              - 09XX: 通用錯誤
           example: "00000"
         messageDesc:
           type: string
@@ -2188,3 +2976,392 @@ components:
           nullable: true
           example: "50000"
       additionalProperties: true
+
+    # 檔案上傳相關 Schema
+    FileUploadRequest:
+      type: object
+      description: 檔案上傳請求
+      properties:
+        file:
+          type: string
+          format: binary
+          description: 要上傳的 Excel 檔案 (.xlsx 格式)
+        action:
+          type: string
+          description: 操作類型
+          enum: ["CREATE", "UPDATE"]
+          example: "CREATE"
+      required:
+        - file
+        - action
+
+    FileUploadResponse:
+      type: object
+      description: 檔案上傳處理結果
+      properties:
+        uploadId:
+          type: string
+          description: 本次上傳的唯一識別碼
+          example: "upload-20250901-001"
+        fileName:
+          type: string
+          description: 上傳的檔案名稱
+          example: "財金情境資料.xlsx"
+        action:
+          type: string
+          description: 操作類型
+          enum: ["CREATE", "UPDATE"]
+          example: "CREATE"
+        totalRecords:
+          type: integer
+          description: 檔案中的總記錄數
+          example: 100
+        successRecords:
+          type: integer
+          description: 成功處理的記錄數
+          example: 95
+        failedRecords:
+          type: integer
+          description: 失敗的記錄數
+          example: 5
+        successRate:
+          type: number
+          format: double
+          description: 成功率百分比 (保留兩位小數)
+          example: 95.00
+        processingTime:
+          type: string
+          description: 處理耗時 (格式：HH:MM:SS)
+          example: "00:00:45"
+        processedAt:
+          type: string
+          format: date-time
+          description: 處理時間 (ISO 8601 格式)
+          example: "2025-09-01T10:30:00Z"
+        creator:
+          type: string
+          description: 操作使用者
+          example: "john.doe"
+        errors:
+          type: array
+          description: 錯誤清單
+          items:
+            $ref: '#/components/schemas/FileUploadError'
+      required:
+        - uploadId
+        - fileName
+        - action
+        - totalRecords
+        - successRecords
+        - failedRecords
+        - successRate
+        - processingTime
+        - processedAt
+        - creator
+        - errors
+
+    FileUploadError:
+      type: object
+      description: 檔案上傳錯誤詳情
+      properties:
+        row:
+          type: integer
+          description: 資料列號 (null表示非特定列的錯誤)
+          nullable: true
+          example: 6
+        column:
+          type: string
+          description: 欄位名稱 (null表示非特定欄位的錯誤)
+          nullable: true
+          example: "account"
+        value:
+          type: string
+          description: 錯誤值 (null表示空值)
+          nullable: true
+          example: "12345"
+        errorCode:
+          type: string
+          description: 錯誤代碼
+          example: "9203"
+        errorMessage:
+          type: string
+          description: 錯誤訊息
+          example: "帳號格式不正確"
+      required:
+        - errorCode
+        - errorMessage
+
+    # 收送紀錄查詢相關 Schema
+    TransactionLogQueryResponse:
+      type: object
+      description: 收送紀錄查詢回應
+      properties:
+        query:
+          $ref: '#/components/schemas/TransactionLogQueryCondition'
+        pagination:
+          $ref: '#/components/schemas/PaginationInfo'
+        txlogs:
+          type: array
+          description: 交易記錄列表
+          items:
+            $ref: '#/components/schemas/TransactionLogInfo'
+      required:
+        - query
+        - pagination
+        - txlogs
+
+    TransactionLogQueryCondition:
+      type: object
+      description: 收送紀錄查詢條件
+      properties:
+        startDatetime:
+          type: string
+          description: 查詢起始時間
+          nullable: true
+          example: "20250905000000"
+        endDatetime:
+          type: string
+          description: 查詢結束時間
+          nullable: true
+          example: "20250906000000"
+        systemType:
+          type: string
+          description: 系統類型
+          enum: ["FA", "FI", "FX", "JC"]
+          nullable: true
+          example: "FA"
+        txnId:
+          type: string
+          description: 交易代碼
+          nullable: true
+          example: "2521"
+        guid:
+          type: string
+          description: GUID
+          nullable: true
+          example: "20250904171118213CBK02340D8DF1A7"
+        italGuidOmsgID:
+          type: string
+          description: ITAI GUID Q MSG ID
+          nullable: true
+          example: "20250904171118213CBK02340D8DF1A8"
+        uuid:
+          type: string
+          description: UUID
+          nullable: true
+          example: "20250904171118213CBK02340D8DF1A9"
+
+    TransactionLogInfo:
+      type: object
+      description: 交易記錄資訊
+      properties:
+        logDatetime:
+          type: string
+          description: 記錄時間
+          format: date-time
+          example: "2025/09/05 05:00:00"
+        systemType:
+          type: string
+          description: 系統類型
+          enum: ["FA", "FI", "FX", "JC"]
+          example: "FA"
+        txnType:
+          type: string
+          description: 交易類型
+          enum: ["req", "resp"]
+          example: "req"
+        txnId:
+          type: string
+          description: 交易代碼
+          example: "2521"
+        guid:
+          type: string
+          description: GUID交易唯一識別碼
+          example: "20250904171118213CBK02340D8DF1A7"
+        italGuidOmsgID:
+          type: string
+          description: ITAI GUID Q MSG ID
+          example: "20250904171118213CBK02340D8DF1A8"
+        uuid:
+          type: string
+          description: UUID
+          example: "20250904171118213CBK02340D8DF1A9"
+        txnData:
+          type: string
+          description: 交易完整資料 (JSON格式字串，已依據txmsglayout排序)
+          example: '{"header":{"systemType":"FA","txnId":"2521","guid":"20250904171118213CBK02340D8DF1A7"},"body":{"account":"1234567890","amount":"10000"}}'
+      required:
+        - logDatetime
+        - systemType
+        - txnType
+        - txnId
+        - guid
+        - italGuidOmsgID
+        - uuid
+        - txnData
+
+    # 使用者維護相關 Schema
+    UserMaintenanceRequest:
+      type: object
+      description: 使用者維護請求
+      properties:
+        action:
+          type: string
+          description: 操作類型
+          enum: ["A", "U", "D"]
+          example: "A"
+        id:
+          type: integer
+          format: int64
+          description: 使用者ID（修改/刪除時必填）
+          nullable: true
+          minimum: 1
+          example: 1
+        username:
+          type: string
+          description: 使用者帳號（新增/修改時必填）
+          minLength: 3
+          maxLength: 100
+          pattern: '^[a-zA-Z0-9_.]+$'
+          nullable: true
+          example: "john.doe"
+        email:
+          type: string
+          description: 電子郵件地址（新增/修改時必填）
+          format: email
+          minLength: 5
+          maxLength: 255
+          nullable: true
+          example: "john.doe@example.com"
+        password:
+          type: string
+          description: 使用者密碼（新增時必填）
+          minLength: 8
+          maxLength: 255
+          nullable: true
+          example: "SecurePass123!"
+        accountType:
+          type: string
+          description: 帳號類型
+          enum: ["ADMIN", "USER", "GUEST"]
+          nullable: true
+          example: "USER"
+        isActive:
+          type: boolean
+          description: 帳號啟用狀態
+          nullable: true
+          example: true
+        roleCode:
+          type: string
+          description: 角色代碼
+          minLength: 1
+          maxLength: 50
+          nullable: true
+          example: "USER_ROLE"
+      required:
+        - action
+      additionalProperties: false
+
+    SystemUserResponse:
+      type: object
+      description: 系統使用者回應
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: 使用者系統唯一識別碼
+          example: 1
+        username:
+          type: string
+          description: 使用者帳號
+          example: "john.doe"
+        email:
+          type: string
+          description: 電子郵件地址
+          example: "john.doe@example.com"
+        accountType:
+          type: string
+          description: 帳號類型
+          enum: ["ADMIN", "USER", "GUEST"]
+          example: "USER"
+        isActive:
+          type: boolean
+          description: 帳號啟用狀態
+          example: true
+        roleCode:
+          type: string
+          description: 角色代碼
+          nullable: true
+          example: "USER_ROLE"
+        roleName:
+          type: string
+          description: 角色名稱
+          nullable: true
+          example: "一般使用者"
+        createdAt:
+          type: string
+          description: 建立時間
+          format: date-time
+          example: "2025/09/05 10:30:45"
+        updatedAt:
+          type: string
+          description: 最後更新時間
+          format: date-time
+          example: "2025/09/05 10:30:45"
+      required:
+        - id
+        - username
+        - email
+        - accountType
+        - isActive
+        - createdAt
+        - updatedAt
+
+    UserListQueryResponse:
+      type: object
+      description: 使用者列表查詢回應
+      properties:
+        query:
+          $ref: '#/components/schemas/UserListQueryCondition'
+        pagination:
+          $ref: '#/components/schemas/PaginationInfo'
+        users:
+          type: array
+          description: 使用者列表
+          items:
+            $ref: '#/components/schemas/SystemUserResponse'
+      required:
+        - query
+        - pagination
+        - users
+
+    UserListQueryCondition:
+      type: object
+      description: 使用者列表查詢條件
+      properties:
+        username:
+          type: string
+          description: 使用者名稱查詢條件
+          nullable: true
+          example: "john"
+        email:
+          type: string
+          description: 電子郵件查詢條件
+          nullable: true
+          example: "@example.com"
+        accountType:
+          type: string
+          description: 帳號類型查詢條件
+          enum: ["ADMIN", "USER", "GUEST"]
+          nullable: true
+          example: "USER"
+        isActive:
+          type: boolean
+          description: 啟用狀態查詢條件
+          nullable: true
+          example: true
+        roleCode:
+          type: string
+          description: 角色代碼查詢條件
+          nullable: true
+          example: "USER_ROLE"
